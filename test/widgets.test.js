@@ -1,77 +1,159 @@
+// -----------------------------------------------------------------------------
+// The "zones" widget: every content passes the SDK's validator (rendered as
+// sent, within the core's budget), its live tiles point at features the
+// devices really publish, its buttons have unique keys and send the right
+// orders.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateWidgetContent } from '@gladysassistant/integration-sdk';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { buildDiscoveredDevices } from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { DEMO_STATUS_WIDGET, WIDGETS, refreshWidgets } from '../src/widgets.js';
-import { normalizeConfig } from '../src/config.js';
+import { createWorld } from './helpers/world.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-const demoStatus = WIDGETS[DEMO_STATUS_WIDGET];
+const Z1 = 'ext:test-integration:zone:00000000000001-Z1';
+const BOILER = 'ext:test-integration:boiler:00000000000001';
+const LANGS = ['en', 'fr', 'de', 'es'];
 
-// What the SDK passes to onWidgetGet, plus the config index.js adds.
-const getContent = (cfg = config) =>
-  demoStatus.get(gladys, { settings: {}, language: 'en', units: 'metric', config: cfg });
+async function content(world, settings = {}, language = 'fr') {
+  const ack = await world.fake.widgetGet('zones', { settings, language, units: 'metric' });
+  assert.equal(ack.success, true, ack.error);
+  return ack.data.content ?? ack.data;
+}
 
-test('the demo_status content is rendered exactly as sent', async () => {
-  // [] = nothing the core would drop, truncate or trim to the content budget.
-  assert.deepEqual(validateWidgetContent(await getContent()), []);
-});
+function check(world, widget) {
+  assert.deepEqual(validateWidgetContent(widget), []);
+  const features = new Set(
+    world.fake.discoveredDevices.flatMap((d) => d.features.map((f) => f.external_id)),
+  );
+  for (const component of widget.components) {
+    if (component.device_feature) {
+      assert.ok(features.has(component.device_feature), `unknown ${component.device_feature}`);
+    }
+  }
+  const keys = widget.components.filter((c) => c.action).map((c) => c.action.key);
+  assert.equal(new Set(keys).size, keys.length, 'unique action keys');
+  assert.ok(
+    widget.components.every((c) => c.type !== 'button' || c.style !== 'primary'),
+    'no primary style (invisible in dark mode)',
+  );
+}
 
-test('the degraded plug connection content is valid too', async () => {
-  simulateLanSession(false);
+test('one zone: live tiles, mode, setpoints, outdoor, four buttons', async () => {
+  const world = await createWorld();
   try {
-    const content = await getContent();
-    assert.deepEqual(validateWidgetContent(content), []);
-    const status = content.components.find((component) => component.type === 'status');
-    assert.ok(
-      status.items.some((item) => item.color === 'warning'),
-      'degraded shows a warning',
-    );
+    for (const language of LANGS) {
+      const widget = await content(world, { zone: Z1 }, language);
+      check(world, widget);
+      const types = widget.components.map((c) => c.type);
+      assert.deepEqual(types.filter((t) => t === 'value').length, 2);
+      assert.deepEqual(types.filter((t) => t === 'button').length, 4);
+    }
+    const widget = await content(world, { zone: Z1 });
+    assert.equal(widget.components[0].text, 'Chambres');
+    const status = widget.components.find((c) => c.type === 'status');
+    assert.equal(status.items[0].value, 'Confort (programme)');
+    assert.equal(status.items[1].value, '19 °C / 19 °C');
+    assert.deepEqual(status.items[3], { label: 'Extérieur', value: '10.5 °C', icon: 'cloud' });
+    const programme = widget.components.find((c) => c.action?.key === 'mode_auto');
+    assert.equal(programme.icon, 'check-circle', 'the current mode is shown by its icon');
   } finally {
-    simulateLanSession(true);
+    await world.stop();
   }
 });
 
-test('the live tiles reference features the integration publishes', async () => {
-  const featureIds = new Set(
-    buildDiscoveredDevices(gladys, config).flatMap((device) =>
-      device.features.map((feature) => feature.external_id),
-    ),
-  );
-  const liveTiles = (await getContent()).components.filter((c) => c.device_feature);
-  assert.ok(liveTiles.length > 0, 'the template demonstrates a device-bound tile');
-  for (const tile of liveTiles) {
-    assert.ok(featureIds.has(tile.device_feature), `unknown feature ${tile.device_feature}`);
+test('overview: every zone, within the tile budget', async () => {
+  const world = await createWorld({
+    cloud: {
+      siteFiles: ['site-two-zones.json', 'site-boost-derogation.json', 'site-heating-only.json'],
+    },
+  });
+  try {
+    for (const language of LANGS) {
+      const widget = await content(world, {}, language);
+      check(world, widget);
+      assert.ok(widget.components.filter((c) => c.type === 'value').length <= 6);
+      const status = widget.components.find((c) => c.type === 'status');
+      assert.equal(status.items.length, 7, '6 zones and the alarm of the second boiler');
+    }
+    const boilerOnly = await content(world, { zone: BOILER });
+    check(world, boilerOnly);
+    assert.equal(boilerOnly.components.find((c) => c.type === 'status').items.length, 2);
+  } finally {
+    await world.stop();
   }
 });
 
-test('every button action of the content is handled and answers a short toast', async () => {
-  const buttons = (await getContent()).components.filter((c) => c.type === 'button' && c.action);
-  assert.ok(buttons.length > 0, 'the template demonstrates a widget action');
-  for (const { action } of buttons) {
-    const message = await demoStatus.action(gladys, {
-      actionKey: action.key,
-      params: action.params ?? {},
-      settings: {},
-      config,
-    });
-    assert.ok(message.en, 'the toast carries at least the mandatory `en` text');
-    assert.ok(message.en.length <= 200, 'toasts are capped at 200 characters');
+test('tiles without an added device show the value itself', async () => {
+  const world = await createWorld({ addDevices: false });
+  try {
+    const widget = await content(world, { zone: Z1 });
+    check(world, widget);
+    const tiles = widget.components.filter((c) => c.type === 'value');
+    assert.ok(tiles.every((c) => c.device_feature === undefined));
+    assert.equal(tiles[0].value, 18.9);
+  } finally {
+    await world.stop();
   }
 });
 
-test('an unknown widget action fails, so the user sees the error', async () => {
-  await assert.rejects(
-    demoStatus.action(gladys, { actionKey: 'unknown', params: {}, settings: {}, config }),
-    /Unknown widget action/,
-  );
+test('not configured: one sentence', async () => {
+  const world = await createWorld({ config: { email: '' }, addDevices: false });
+  try {
+    const widget = await content(world);
+    check(world, widget);
+    assert.match(widget.components[0].text.fr, /e-mail/);
+  } finally {
+    await world.stop();
+  }
 });
 
-test('refreshWidgets nudges every widget', () => {
-  const fresh = createFakeGladys();
-  refreshWidgets(fresh);
-  assert.deepEqual(fresh.fake.widgetRefreshes, Object.keys(WIDGETS));
+test('the buttons send the orders and answer with a toast', async () => {
+  const world = await createWorld();
+  try {
+    let ack = await world.fake.widgetAction(
+      'zones',
+      'mode_comfort',
+      { zone: Z1 },
+      { settings: {} },
+    );
+    assert.equal(ack.success, true);
+    assert.deepEqual(world.cloud.orders, [{ cle: 'SELECTEUR_Z1', valeur: '6' }]);
+    const toast = ack.data.message ?? ack.data;
+    assert.match(toast.fr, /^Chambres : Confort demandé/);
+    assert.ok(Object.values(toast).every((text) => text.length <= 200));
+
+    // On the programme, during a comfort period, the override asks for reduced.
+    await world.fake.widgetAction('zones', 'mode_auto', { zone: Z1 }, { settings: {} });
+    world.cloud.orders.length = 0;
+    ack = await world.fake.widgetAction('zones', 'override', { zone: Z1 }, { settings: {} });
+    assert.deepEqual(world.cloud.orders, [{ cle: 'MODE_DERO', valeur: '7' }]);
+    assert.match((ack.data.message ?? ack.data).fr, /Réduit \(dérogation\)/);
+
+    const widget = await content(world, { zone: Z1 });
+    const end = widget.components.find((c) => c.action?.key === 'end_override');
+    assert.ok(end, 'the override can be ended from the widget');
+    world.cloud.orders.length = 0;
+    await world.fake.widgetAction('zones', 'end_override', { zone: Z1 }, { settings: {} });
+    assert.deepEqual(world.cloud.orders, [{ cle: 'MODE_DERO', valeur: '0' }]);
+  } finally {
+    await world.stop();
+  }
+});
+
+test('an unknown zone or action is refused', async () => {
+  const world = await createWorld();
+  try {
+    let ack = await world.fake.widgetAction(
+      'zones',
+      'mode_auto',
+      { zone: 'nope' },
+      { settings: {} },
+    );
+    assert.equal(ack.success, false);
+    ack = await world.fake.widgetAction('zones', 'explode', { zone: Z1 }, { settings: {} });
+    assert.equal(ack.success, false);
+    assert.equal(world.cloud.orders.length, 0);
+  } finally {
+    await world.stop();
+  }
 });

@@ -1,169 +1,264 @@
 // -----------------------------------------------------------------------------
-// Dashboard widgets (SDK v0.14+, Gladys 5.1+).
+// Dashboard widget "zones" (manifest `widgets`, Gladys ≥ 5.1).
 //
-// A widget puts the integration's own data on the Gladys dashboard without a
-// dedicated core widget. The manifest `widgets` field declares its identity
-// (key, label, icon, optional per-instance `settings`); at runtime the
-// integration returns a DECLARATIVE content — `text`, `value`, `gauge`,
-// `status`, `chart`, `card-list`, `image`, `button` — that the core renders
-// with its own theme, dark mode and translations. No HTML, no CSS.
+//   - with a zone chosen in its settings: the room temperature and the setpoint
+//     (live tiles), the mode and the setpoints, and four buttons — back to the
+//     programme, permanent comfort, permanent reduced, and the Frisquet
+//     "dérogation" (the opposite of the running period, until the next change
+//     of the programme) or its end;
+//   - without (or with a boiler): every zone at a glance, temperature and
+//     setpoint tiles, one status line per zone.
 //
-// Each entry of WIDGETS is keyed by the widget `key` and exposes:
-//   - get(gladys, { settings, language, units, config }): the content,
-//     registered by index.js with `gladys.onWidgetGet(key, ...)`;
-//   - action(gladys, { actionKey, params, settings, config }) (optional): a
-//     tapped `button` carrying an `action`, registered with
-//     `gladys.onWidgetAction`.
-//
-// Check your contents in the tests with `validateWidgetContent` (exported by
-// the SDK, see test/widgets.test.js), or run with DEBUG=gladys-integration-sdk
-// to have the SDK log every violation of the vocabulary and the budget.
+// Budget of the core: 8 components, 6 tiles, 2 texts, 1 status, 4 buttons:
+// a zone is heading + 2 tiles + status + 4 buttons, the overview heading +
+// 6 tiles + status.
+// The current choice is shown by the icon (check-circle), never by the
+// `primary` style, invisible in dark mode (Gladys#3153). Action keys are
+// unique within a content (the core drops a duplicate).
 // -----------------------------------------------------------------------------
 
-import {
-  createLogger,
-  DEVICE_FEATURE_CATEGORIES,
-  DEVICE_TRANSPORTS,
-  WIDGET_COLORS,
-} from '@gladysassistant/integration-sdk';
-import { identifyDevice } from './devices/index.js';
-import { weatherStation } from './devices/weatherStation.js';
-import { plug } from './devices/plug.js';
-import { light } from './devices/light.js';
+import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
+import { ZONE_MODE } from './frisquet/model.js';
+import { ZONE_FEATURE, zoneIds, zoneName, zoneStatusText } from './devices.js';
+import { TEXT, pick } from './i18n.js';
 
-const logger = createLogger({ name: 'widgets' });
+export const WIDGET = { ZONES: 'zones' };
 
-// Widget key, as declared in the manifest `widgets` field.
-export const DEMO_STATUS_WIDGET = 'demo_status';
+const MAX_TILES = 6;
 
-// Keys of the `button` actions the demo_status content declares.
-const DEMO_STATUS_ACTIONS = { IDENTIFY_LIGHT: 'identify_light' };
+const fmt = (value) => (value === null || value === undefined ? '—' : `${value} °C`);
 
-// How the plug transport reads in the status list.
-const TRANSPORT_STATUS = {
-  [DEVICE_TRANSPORTS.LOCAL]: { value: { en: 'Local', fr: 'Locale' }, color: WIDGET_COLORS.SUCCESS },
-  [DEVICE_TRANSPORTS.CLOUD]: { value: { en: 'Cloud', fr: 'Cloud' }, color: WIDGET_COLORS.INFO },
-  [DEVICE_TRANSPORTS.UNREACHABLE]: {
-    value: { en: 'Unreachable', fr: 'Injoignable' },
-    color: WIDGET_COLORS.DANGER,
-  },
-};
+/** Pick the language of the request; the content is cached per language. */
+const t = (key, language) => pick(TEXT[key], language);
 
-// A live tile references a feature by its external_id: read it from the
-// discovery payload itself, so the widget and the device never disagree.
-function featureExternalId(gladys, config, blueprint, category) {
-  const device = blueprint.buildDevice(gladys, config);
-  return device.features.find((feature) => feature.category === category).external_id;
-}
-
-function plugConnectionStatus(gladys, config) {
-  const { transport, degraded } = plug.transport(gladys, config);
-  const { value, color } = TRANSPORT_STATUS[transport];
-  if (degraded) {
-    return {
-      value: { en: `${value.en} (degraded mode)`, fr: `${value.fr} (mode dégradé)` },
-      color: WIDGET_COLORS.WARNING,
-    };
+/** Feature external ids of the devices the user added (a tile needs one). */
+function createdFeatures(gladys) {
+  const ids = new Set();
+  for (const device of gladys.devices ?? []) {
+    for (const feature of device.features ?? []) {
+      ids.add(feature.external_id);
+    }
   }
-  return { value, color };
+  return ids;
 }
 
-export const WIDGETS = {
-  [DEMO_STATUS_WIDGET]: {
-    // `settings` holds the per-instance values of the declared `settings`
-    // (none here); `language` and `units` are those of the user viewing the
-    // dashboard, for the values you format yourself. Multi-language objects
-    // (`{ en, fr }`) are picked by the core, like everywhere else.
-    async get(gladys, { config }) {
-      logger.debug(`onWidgetGet <- ${DEMO_STATUS_WIDGET}`);
-      return {
-        // Reload policy: the computed parts below only change with the
-        // config, and index.js nudges the widget on every (re)connection and
-        // config update (see refreshWidgets) — the TTL is just a safety net.
-        ttl_seconds: 300,
-        components: [
-          // Device-bound tiles: LIVE, they follow the published states over
-          // the core's real-time path. No TTL, no nudge involved.
-          {
-            type: 'value',
-            label: { en: 'Temperature', fr: 'Température' },
-            icon: 'thermometer',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              weatherStation,
-              DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR,
-            ),
-          },
-          {
-            type: 'value',
-            label: { en: 'Office plug', fr: 'Prise du bureau' },
-            icon: 'zap',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              plug,
-              DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR,
-            ),
-          },
-          // Computed rows: what the integration knows that no device feature
-          // carries. Served from the core cache until the TTL or a nudge.
-          {
-            type: 'status',
-            items: [
-              {
-                label: { en: 'Plug connection', fr: 'Connexion de la prise' },
-                icon: 'wifi',
-                ...plugConnectionStatus(gladys, config),
-              },
-              {
-                label: { en: 'Observed location', fr: 'Position observée' },
-                icon: 'map-pin',
-                value: `${config.latitude.toFixed(2)}, ${config.longitude.toFixed(2)}`,
-                color: WIDGET_COLORS.NEUTRAL,
-              },
-            ],
-          },
-          // `params` are declared HERE and sent back as-is: the handler never
-          // receives user input (a dashboard can hang on a public wall).
-          {
-            type: 'button',
-            label: { en: 'Identify the light', fr: 'Identifier la lampe' },
-            icon: 'eye',
-            style: 'secondary',
-            action: {
-              key: DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT,
-              params: { device: light.deviceExternalId(gladys) },
-            },
-          },
-        ],
-      };
-    },
+function tile(created, featureId, label, value, unit = '°C') {
+  return created.has(featureId)
+    ? { type: 'value', device_feature: featureId, label }
+    : { type: 'value', value: value ?? '—', unit: value === null ? undefined : unit, label };
+}
 
-    // Resolve an optional toast (string or multi-language object, ≤ 200
-    // characters). After a successful action the core drops the cached
-    // content and every open dashboard refetches it: no nudge needed.
-    async action(gladys, { actionKey, params, config }) {
-      logger.info(`onWidgetAction <- ${DEMO_STATUS_WIDGET}.${actionKey}`);
-      if (actionKey === DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT) {
-        return identifyDevice(gladys, params.device, config);
+/** The buttons of one zone: programme, comfort, reduced, override. */
+function zoneButtons(zoneDevice, zone, language) {
+  const current = (selector) =>
+    zone.selector === selector && !(selector === ZONE_MODE.AUTO && zone.override);
+  const button = (key, label, icon, selector) => ({
+    type: 'button',
+    label,
+    icon: current(selector) ? 'check-circle' : icon,
+    style: 'secondary',
+    action: { key, params: { zone: zoneDevice } },
+  });
+  const overrideButton = zone.override
+    ? {
+        type: 'button',
+        label: t('endOverride', language),
+        icon: 'x-circle',
+        style: 'secondary',
+        action: { key: 'end_override', params: { zone: zoneDevice } },
       }
-      // Throwing acks the action as failed: the message reaches the user.
-      throw new Error(`Unknown widget action: ${actionKey}`);
+    : {
+        type: 'button',
+        label: t('override', language),
+        icon: 'clock',
+        style: 'secondary',
+        action: { key: 'override', params: { zone: zoneDevice } },
+      };
+  return [
+    button('mode_auto', t('schedule', language), 'calendar', ZONE_MODE.AUTO),
+    button('mode_comfort', t('comfort', language), 'sun', ZONE_MODE.COMFORT),
+    button('mode_reduced', t('reduced', language), 'moon', ZONE_MODE.REDUCED),
+    overrideButton,
+  ];
+}
+
+function alarmItems(site, language) {
+  return site.alarms.map((alarm) => ({
+    label: t('alarm', language),
+    value: alarm.slice(0, 40),
+    icon: 'alert-triangle',
+    color: WIDGET_COLORS.DANGER,
+  }));
+}
+
+/** A zone mode in every language, for the toast of an order. */
+export function modeText(mode) {
+  const base = {
+    auto: TEXT.schedule,
+    comfort: TEXT.comfort,
+    reduced: TEXT.reduced,
+    frost: TEXT.frost,
+    comfort_override: TEXT.comfort,
+    reduced_override: TEXT.reduced,
+    end_override: TEXT.endOverride,
+  }[mode];
+  if (mode !== 'comfort_override' && mode !== 'reduced_override') {
+    return base;
+  }
+  return Object.fromEntries(
+    Object.entries(base).map(([lang, text]) => [lang, `${text} (${TEXT.byOverride[lang]})`]),
+  );
+}
+
+/** One zone in detail. */
+export function buildZoneContent(gladys, site, zone, { language, manySites = false }) {
+  const created = createdFeatures(gladys);
+  const ids = zoneIds(gladys, site.id, zone.id);
+  const tiles = [
+    tile(
+      created,
+      ids.feature(ZONE_FEATURE.TEMPERATURE),
+      t('temperatureShort', language),
+      zone.temperature,
+    ),
+    tile(created, ids.feature(ZONE_FEATURE.SETPOINT), t('setpointShort', language), zone.setpoint),
+  ];
+  const items = [
+    {
+      label: t('mode', language),
+      value: zoneStatusText(site, zone, language),
+      icon: 'thermometer',
     },
-  },
-};
+    {
+      label: t('setpoints', language),
+      value: `${fmt(zone.comfort)} / ${fmt(zone.reduced)}`,
+      icon: 'sliders',
+    },
+    { label: t('frost', language), value: fmt(zone.frost), icon: 'shield' },
+  ];
+  if (site.outdoorTemperature !== null) {
+    items.push({
+      label: t('outdoorShort', language),
+      value: fmt(site.outdoorTemperature),
+      icon: 'cloud',
+    });
+  }
+  if (site.holiday.active) {
+    items.push({
+      label: t('holiday', language),
+      value: t('frost', language),
+      icon: 'briefcase',
+      color: WIDGET_COLORS.INFO,
+    });
+  }
+  items.push(...alarmItems(site, language));
+  return {
+    ttl_seconds: 300,
+    components: [
+      { type: 'text', variant: 'heading', text: zoneName(site, zone, language, { manySites }) },
+      ...tiles,
+      { type: 'status', items: items.slice(0, 10) },
+      ...zoneButtons(ids.device, zone, language),
+    ],
+  };
+}
+
+/** Every zone of the given boilers at a glance. */
+export function buildOverviewContent(gladys, sites, { language }) {
+  const created = createdFeatures(gladys);
+  const manySites = sites.length > 1;
+  const zones = sites.flatMap((site) => site.zones.map((zone) => ({ site, zone })));
+  const tiles = [];
+  for (const { site, zone } of zones) {
+    if (tiles.length + 2 > MAX_TILES) {
+      break;
+    }
+    const ids = zoneIds(gladys, site.id, zone.id);
+    const name = zoneName(site, zone, language, { manySites }).slice(0, 24);
+    tiles.push(
+      tile(created, ids.feature(ZONE_FEATURE.TEMPERATURE), name, zone.temperature),
+      tile(
+        created,
+        ids.feature(ZONE_FEATURE.SETPOINT),
+        `${t('setpointShort', language)}`.slice(0, 24),
+        zone.setpoint,
+      ),
+    );
+  }
+  const items = zones.map(({ site, zone }) => ({
+    label: zoneName(site, zone, language, { manySites }).slice(0, 40),
+    value: zoneStatusText(site, zone, language).slice(0, 40),
+    icon: 'thermometer',
+  }));
+  for (const site of sites) {
+    items.push(...alarmItems(site, language));
+  }
+  return {
+    ttl_seconds: 300,
+    components: [
+      { type: 'text', variant: 'heading', text: t('zones', language) },
+      ...tiles,
+      { type: 'status', items: items.slice(0, 10) },
+    ],
+  };
+}
+
+/** A content made of one sentence (not configured, nothing yet, cloud down). */
+export function messageContent(text) {
+  return { ttl_seconds: 60, components: [{ type: 'text', variant: 'body', text }] };
+}
 
 /**
- * Freshness nudge: ask the core to re-pull every widget NOW instead of
- * waiting for the content TTL. Call it when you KNOW a computed content
- * changed (here: the config, which drives the plug transport and the observed
- * location) — and after every (re)connection, since the nudges are
- * fire-and-forget: rate-limited core-side to 1 per 10 s per widget, dropped
- * silently while disconnected.
+ * @param {object} options
+ * @param {object} options.gladys
+ * @param {ReturnType<import('./hub.js').createHub>} options.hub
+ * @param {() => object} options.getConfig
+ * @param {(config: object) => boolean} options.isConfigured
  */
-export function refreshWidgets(gladys) {
-  for (const key of Object.keys(WIDGETS)) {
-    gladys.requestWidgetRefresh(key);
-  }
+export function createZonesWidget({ gladys, hub, getConfig, isConfigured }) {
+  return {
+    async get({ settings = {}, language = 'en' } = {}) {
+      if (!isConfigured(getConfig())) {
+        return messageContent(TEXT.notConfigured);
+      }
+      const sites = hub.sites();
+      const chosen = settings.zone ? hub.locate(String(settings.zone)) : null;
+      if (chosen?.zone) {
+        return buildZoneContent(gladys, chosen.site, chosen.zone, {
+          language,
+          manySites: sites.length > 1,
+        });
+      }
+      const shown = chosen ? [chosen.site] : sites;
+      if (shown.every((site) => site.zones.length === 0)) {
+        return messageContent(TEXT.noZone);
+      }
+      return buildOverviewContent(gladys, shown, { language });
+    },
+
+    async action(actionKey, params = {}) {
+      const found = hub.locate(String(params.zone));
+      if (!found?.zone) {
+        throw new Error('This zone is no longer known: refresh the widget');
+      }
+      const { site, zone } = found;
+      const mode =
+        {
+          mode_auto: 'auto',
+          mode_comfort: 'comfort',
+          mode_reduced: 'reduced',
+          end_override: 'end_override',
+        }[actionKey] ??
+        (actionKey === 'override'
+          ? zone.mode === ZONE_MODE.COMFORT
+            ? 'reduced_override'
+            : 'comfort_override'
+          : null);
+      if (!mode) {
+        throw new Error(`Unknown action ${actionKey}`);
+      }
+      await hub.setZoneMode(site, zone, mode);
+      return hub.orderMessage(site, zone, modeText(mode));
+    },
+  };
 }

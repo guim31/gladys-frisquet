@@ -9,7 +9,8 @@ A Gladys Assistant **external integration**: a Node.js service (Node 22+, ESM,
 no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
-its only runtime dependency. It started from the official JavaScript template.
+its only runtime dependency. It started from the official JavaScript template, and drives Frisquet boilers through the cloud
+of the Frisquet Connect app.
 
 ## Commands
 
@@ -31,16 +32,24 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+index.js                          SDK wiring only: createApp(new GladysIntegration()).start()
+src/app.js                        every handler, registered before connect() (testable on the fake Gladys)
+src/frisquet/client.js            Frisquet Connect cloud client: sign-in, token, pacing, redact()
+src/frisquet/model.js             raw answers → plain objects, commands → orders (pure functions)
+src/frisquet/errors.js            AuthError / UnavailableError / ApiError
+src/hub.js                        state of the boilers, reads, publishes changes, commands, alarm trigger
+src/devices.js                    the boiler and zone devices, their features and states
+src/poller.js                     the container's own timer (5-15 min), onPoll as a fallback
+src/scenes.js                     scene actions (manifest `scene_actions`)
+src/widgets.js                    the "zones" dashboard widget (manifest `widgets`)
+src/i18n.js                       every user-facing text, in en / fr / de / es
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
+src/store.js                      /data/frisquet.json (token, last hot water mode, alarms seen)
+scripts/probe.mjs                 read-only probe of the real cloud (needs the network)
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+docs/en.md, fr.md, de.md, es.md   user documentation, re-hosted by Gladys, same sections
+test/                             node --test, SDK fake Gladys + fake cloud (test/helpers/cloud.js)
+test/fixtures/                    real anonymized cloud answers, see test/fixtures/README.md
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +79,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in four languages (English, French, German, Spanish): action
+  messages, widget texts, feature names, manifest texts, and `docs/en.md`, `fr.md`, `de.md`,
+  `es.md`, kept in sync with the same sections (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +243,47 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Frisquet Connect (propre à cette intégration)
+
+**L'API** (privée, sans documentation officielle) : `https://fcutappli.frisquet.com/api/v1`.
+Reconstituée d'après mgcrea/homebridge-frisquet-connect (`docs/protocol.md`, probe sur une vraie
+Hydromotrix), TheGui01/Frisquet-connect-for-home-assistant et
+home-assistant-custom-components/frisquet-connect (tous MIT). `markkvdb/frisquet-api` n'a pas de
+licence : lu, pas recopié.
+
+- `POST /authentifications?app_id=…`, corps formulaire `locale, email, password, type_client` →
+  `{ token, utilisateur.sites[] }` (TheGui01 envoie du JSON avec un `app_id` aléatoire : les deux
+  passeraient). Le jeton n'a pas de durée annoncée : un 401/403 le jette, une seule reconnexion.
+- `GET /sites/{identifiant_chaudiere}?token=` : tout l'état. `GET /sites/{id}/conso?types[]=CHF&types[]=SAN` :
+  kWh **par mois** (`{ valeur, mois, annee }`). `POST /ordres/{id}?token=` : `[{ cle, valeur }]`,
+  **valeurs en chaînes**.
+- **Le jeton est dans l'URL** : tout log d'URL passe par `redact()`.
+- Températures en **dixièmes de degré** ; 0 est une vraie mesure.
+- `SELECTEUR` (choix : 5 auto, 6 confort, 7 réduit, 8 hors-gel) s'écrit ; `MODE` et `CAMB` sont
+  **dérivés** par la chaudière à sa prochaine remontée (quelques minutes) : ne jamais les écrire.
+- Clés d'ordre suffixées par `numero` de zone (`CONS_CONF_Z1`), pas par `identifiant`. `MODE_DERO`
+  (6, 7, 0 pour finir) **n'a pas de numéro de zone** : portée exacte non vérifiée.
+- Une **clé d'ordre fausse est acceptée en 200 puis ignorée** : seule la relecture prouve un ordre.
+- `alarmes` = défauts utilisateur ; `alarmes_pro` = notes installateur permanentes, à ignorer.
+- `modes_ecs` : le glyphe privé `\ue809` marque les modes programmés ; il se perd parfois en laissant
+  une espace finale (« Eco »).
+- Le mode vacances se lit (`vacances.MODE_VACANCES`) ; **aucune clé d'écriture n'est documentée**.
+- Le cloud limite (429 signalés) : requêtes sérialisées, 500 ms d'écart, 429 = transitoire.
+
+**Pièges découverts ici**
+
+- **Gaz et suivi d'énergie** : dans Gladys 5.2.1, tout `energy-sensor/index` (et `energy`,
+  `daily-consumption`, `thirty-minutes-consumption`) est rattaché par défaut au **compteur
+  électrique principal** (`addEnergyFeatures`, `defaultElectricMeterDeviceFeatureId`) : un index de
+  gaz serait compté comme de l'électricité. Les kWh de gaz sont publiés en
+  `counter-sensor/integer` (unité kWh), hors du suivi d'énergie.
+- `thermostat/preset` (`THERMOSTAT_PRESET`) n'existe qu'à partir de **5.2.0** : `gladys_version`
+  `>=5.2.0`. Le front affiche le libellé i18n de Gladys (pas celui de `supported_options`) pour une
+  valeur connue : « réduit » s'affiche « Éco ».
+- `publishChangedStates` refuse `heartbeat: 0` ; inutile de forcer : le SDK oublie lui-même les
+  valeurs d'un appareil à sa création.
+- Budget widget : un en-tête, 2 tuiles, un statut et 4 boutons font déjà 8 composants ; pas de
+  légende en plus.
+- Le proxy des sessions de code refuse `fcutappli.frisquet.com` (403) : `scripts/probe.mjs` se
+  lance ailleurs.
