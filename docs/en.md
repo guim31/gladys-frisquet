@@ -1,61 +1,160 @@
-# Demo Devices Template
+# Frisquet Connect
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+## Overview
 
-## What you get
+This integration links Gladys to your **Frisquet boiler** fitted with the **Frisquet Connect
+box**, through the same online service as the "Frisquet Connect" app. In Gladys you get:
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+- every **heating zone** (Zone 1, Zone 2, Zone 3 depending on your installation) with its room
+  temperature, its setpoint, its comfort / reduced / frost protection setpoints and its mode;
+- the **boiler**: outdoor temperature (when a probe is fitted), domestic hot water (on / off and
+  mode), alarms, holiday mode, standby and **gas used** for heating and hot water;
+- a dashboard **widget** to change modes in one tap, **scene actions** and a **trigger** on alarms.
+
+A community integration, **not affiliated with Frisquet**. Frisquet Connect has no public API: the
+integration speaks the language of the official app, after the work of the projects credited in
+the README. **Developed without the hardware nor an account: feedback welcome**, especially if a
+mode or a command does not behave as in the app.
+
+## Requirements
+
+- A Frisquet boiler with the **Frisquet Connect box** installed and paired.
+- An account in the **Frisquet Connect** app (e-mail and password) that sees your boiler.
+- Gladys Assistant **5.2.0 or later** (the zone mode uses the thermostat presets added in 5.2.0).
+- Internet access for Gladys: everything goes through Frisquet's online service, nothing through
+  the local network.
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+1. In Gladys, **Integrations → Frisquet Connect → Configuration**.
+2. Enter the **e-mail** and **password** of the Frisquet Connect app.
+3. Pick the **language of the names** (French by default). Feature names are fixed when you add a
+   device: change the language first.
+4. Pick the **refresh interval**: every 5 minutes (default), 10 or 15 minutes.
+5. Save, then click **Test the connection**: the message gives the number of boilers and zones
+   found.
+6. **Discover** tab: add the boiler and the zones you want.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+If your account holds several boilers (a house and a flat, for instance), all of them show up; the
+name of each zone then starts with the name of its installation.
 
-## Actions
+## What each device does
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+### The boiler
+
+| Feature                     | What it shows or does                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Outdoor temperature         | The outdoor probe, when one is fitted.                                        |
+| Hot water                   | Hot water on / off. "On" restores the last mode used.                         |
+| Hot water mode              | MAX, Eco, Eco scheduled, Eco+, Eco+ scheduled, Off (depending on the boiler). |
+| Alarm / Alarm active        | The text of the alarm shown by Frisquet, and a yes / no indicator.            |
+| Holiday mode                | On while a holiday is scheduled and running (read-only).                      |
+| Boiler on standby           | The boiler is on standby.                                                     |
+| Heating gas / hot water gas | Gas used this month and this year, in kWh, as counted by Frisquet.            |
+
+Installer notes (a standing reminder about underfloor heating, for instance) are not faults: they
+are ignored.
+
+### The heating zones
+
+| Feature                                       | What it shows or does                                                                                                                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Room temperature                              | The temperature measured by the room sensor of the zone.                                                                                      |
+| Setpoint                                      | The setpoint applied right now. Changing it changes the setpoint of the running mode (comfort or reduced), for good, as in the app.           |
+| Comfort / reduced / frost protection setpoint | The three setpoints of the zone, from 5 to 30 °C in 0.5 °C steps.                                                                             |
+| Mode                                          | **Schedule** (follows the weekly programme), permanent **Comfort**, **Reduced** or **Frost protection**. In Gladys, "Reduced" shows as "Eco". |
+| Override running                              | An override is active (a mode forced until the next change of the programme).                                                                 |
+| Boost                                         | Only when the zone offers it: a temporary heating boost.                                                                                      |
+| Current mode                                  | A sentence: "Comfort (schedule)", "Reduced (override)", "Frost protection (holiday)"…                                                         |
+
+Choosing **Schedule** also ends a running override.
+
+## Pace, delays and quotas
+
+- The Connect box relays the state of the boiler to Frisquet's service **by radio, every few
+  minutes**. Reading more often would bring nothing: the integration reads every 5 minutes by
+  default (10 or 15 if you prefer), and the gas consumption (monthly) every 6 hours.
+- The service accepts a command at once, but the boiler only applies it at its next exchange with
+  the box: **allow a few minutes**. Gladys shows the requested value at once, then the integration
+  reads the boiler again 20 seconds and 3 minutes later.
+- The service limits the number of requests: the integration spaces its calls by half a second at
+  least and only reads the boilers with a device added to Gladys. After a refused password it waits
+  30 minutes before trying again on its own (so as not to lock your account); fixing the
+  configuration starts over at once.
+- A value that does not change is published again every 6 hours, so Gladys does not flag it as
+  old.
+
+## Widget
+
+Add the **Frisquet heating** widget to a dashboard.
+
+- **Without a setting** (or with a boiler): every zone at a glance, the temperature and setpoint of
+  each, and one line per zone with its current mode.
+- **With a zone chosen**: its live temperature and setpoint, the current mode, the comfort /
+  reduced / frost protection setpoints, the outdoor temperature, and four buttons: **Schedule**,
+  **Comfort**, **Reduced** and **Override** (which reverses the running period until the next
+  change of the programme, like the override key of the boiler) or **End override**. The active
+  mode carries a tick.
+
+Frost protection has no button in the widget, so an unlucky tap never cuts the comfort: choose it
+on the device or with a scene.
 
 ## Scenes
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+### Trigger
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+- **Frisquet boiler alarm** — a new alarm appeared on the boiler (fault, Connect box
+  disconnected…). Pick the boiler, or leave it empty for all. The text of the alarm is in the
+  "Alarm" variable. An alarm already there at install or restart triggers nothing.
 
-## Dashboard
+### Actions
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+- **Frisquet heating mode** — pick a zone, or a boiler for all its zones, and the mode: back to the
+  schedule, permanent comfort / reduced / frost protection, comfort or reduced until the next
+  change (override), or end of the override.
+- **Frisquet hot water** — pick the boiler and the mode: On (last mode used), Off, MAX, Eco, Eco
+  scheduled, Eco+, Eco+ scheduled.
+
+Setpoints are set with the standard "Control a device" action of Gladys.
+
+## Scene examples
+
+- **Weekend away**: when the house alarm switches to away mode, **Frisquet heating mode** on the
+  boiler with "Frost protection, permanent", then **Frisquet hot water** on "Off". On the way back,
+  "Back to the schedule" and "On".
+- **Home earlier than planned**: when your phone comes back to the home area on a weekday,
+  "Comfort until the next change" on the living room zone.
+- **Warn about a fault**: trigger **Frisquet boiler alarm**, then a Telegram message "Boiler:
+  {{triggerEvent.data.alarm}}".
+- **Off-peak hours**: at 10 pm, reduced setpoint 17 °C; at 6 am, comfort setpoint 20 °C ("Control
+  a device" action).
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **"Frisquet Connect refused the e-mail or the password"**: check them by signing in to the
+  Frisquet Connect app, then fix the configuration.
+- **"Frisquet Connect does not answer"**: the service is down or under maintenance; the
+  integration tries again on its own. The alarm "Box Frisquet Connect déconnectée" means the box no
+  longer reaches the Internet (box unplugged, Wi-Fi down).
+- **A command changes nothing**: wait a few minutes (see the delays above). If the value comes back
+  to the old one after 5 minutes, report it with the logs.
+- **"No recent value"** on the gas consumption: your account may not provide it; everything else
+  works without.
+- **Logs**: in normal operation the integration writes nothing. For the details, set `LOG_LEVEL`
+  to `debug`. The token and the password never appear in the logs.
+
+## Limits
+
+- **Developed without the hardware nor an account**: the answers of the service come from other
+  community projects that recorded them on real boilers. Feedback welcome.
+- **Holiday mode** is read-only: how to schedule it through the service is not documented. Set it
+  in the app or on the boiler, or use "Frost protection, permanent".
+- The **override** is a command without a zone number in Frisquet's service: on a multi-zone
+  installation it may apply to zone 1 or to every zone, depending on the boiler. To be checked at
+  home.
+- The **weekly programme** cannot be edited from Gladys (only followed).
+- The **gas consumption** is the one Frisquet computes, per month: it is not a gas meter, and it is
+  not sent to the energy monitoring of Gladys, which would count it as electricity.
+- The **hot water mode** of solar installations is not handled.
+- Everything goes through the Internet: without Frisquet's service, Gladys no longer sees the
+  boiler (the boiler itself keeps heating normally).

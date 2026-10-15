@@ -1,0 +1,227 @@
+{
+  "sigmacom": "00000000000002",
+  "produit": {
+    "gamme": "Condensation",
+    "chaudiere": "Hydromotrix",
+    "version1": "Chauffage seul ou pour ballon UPEC",
+    "version2": null,
+    "puissance": "25 kW"
+  },
+  "agi": "FAKE00001",
+  "id_equipement": 1,
+  "identifiant_chaudiere": "00000000000001",
+  "nom": "Maison",
+  "code_postal": "00000",
+  "code_pays": "FR",
+  "emails_alerte": [],
+  "telephones_alerte": [],
+  "date_derniere_remontee": "1766407098",
+  "timezone": "Europe/Paris",
+  "carac_site": {
+    "DATE_HEURE_CHAUDIERE": "1766407889",
+    "CHAUDIERE_EN_VEILLE": false,
+    "AUTO_MANU": true
+  },
+  "ecs": {
+    "TYPE_ECS": 1,
+    "solaire": false,
+    "AVEC_ECS": null,
+    "MODE_ECS": {
+      "nom": "Eco ",
+      "id": 2,
+      "code": null
+    },
+    "MODE_ECS_SOLAIRE": {
+      "nom": "MAX",
+      "id": 0
+    },
+    "MODE_ECS_PAC": null
+  },
+  "environnement": {
+    "T_EXT": 105,
+    "T_EXT_GE": null
+  },
+  "vacances": {
+    "DATE_DEP_VACANCES": null,
+    "DATE_RET_VACANCES": null,
+    "MODE_VACANCES": false
+  },
+  "zones": [
+    {
+      "boost_disponible": false,
+      "id": 1001,
+      "identifiant": "Z1",
+      "numero": 1,
+      "nom": "Chambres",
+      "carac_zone": {
+        "MODE": 6,
+        "SELECTEUR": 5,
+        "TAMB": 189,
+        "CAMB": 190,
+        "DERO": false,
+        "CONS_RED": 190,
+        "CONS_CONF": 190,
+        "CONS_HG": 120,
+        "ACTIVITE_BOOST": false
+      },
+      "programmation": [
+        {
+          "jour": 0,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 1,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 2,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 3,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 4,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 5,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 6,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        }
+      ]
+    },
+    {
+      "boost_disponible": false,
+      "id": 1002,
+      "identifiant": "Z2",
+      "numero": 2,
+      "nom": "Séjour",
+      "carac_zone": {
+        "MODE": 6,
+        "SELECTEUR": 5,
+        "TAMB": 192,
+        "CAMB": 200,
+        "DERO": false,
+        "CONS_RED": 190,
+        "CONS_CONF": 200,
+        "CONS_HG": 120,
+        "ACTIVITE_BOOST": false
+      },
+      "programmation": [
+        {
+          "jour": 0,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 1,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 2,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 3,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 4,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 5,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        },
+        {
+          "jour": 6,
+          "plages": [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          ]
+        }
+      ]
+    }
+  ],
+  "modes_ecs": [
+    {
+      "nom": "MAX",
+      "id": 0,
+      "code": null
+    },
+    {
+      "nom": "Eco",
+      "id": 1,
+      "code": null
+    },
+    {
+      "nom": "Eco ",
+      "id": 2,
+      "code": null
+    },
+    {
+      "nom": "Eco +",
+      "id": 3,
+      "code": null
+    },
+    {
+      "nom": "Eco + ",
+      "id": 4,
+      "code": null
+    },
+    {
+      "nom": "Stop",
+      "id": 5,
+      "code": null
+    }
+  ],
+  "alarmes": [],
+  "alarmes_pro": [
+    {
+      "nom": "ABAISSEMENT TEMPERATURE PLANCHER CHAUFFANT"
+    }
+  ]
+}

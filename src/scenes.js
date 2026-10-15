@@ -1,41 +1,70 @@
 // -----------------------------------------------------------------------------
-// Scene actions (SDK v0.14+, Gladys 5.1+).
+// Scene actions (manifest `scene_actions`, Gladys ≥ 5.1).
 //
-// A scene action is an OPERATION a scene author places in a scene, with
-// parameters and a result: "identify this device", "take a snapshot", "clean
-// these rooms". Each one is declared in the manifest `scene_actions` field
-// (key, label, `fields` in the config_schema grammar, scalar `outputs`) and
-// handled here, keyed by that same `key`; index.js registers every entry with
-// `gladys.onSceneAction(key, ...)`.
+//   - set_zone_mode     : programme, permanent comfort / reduced / frost
+//                         protection, or a temporary override, on one zone or
+//                         on every zone of a boiler;
+//   - set_hot_water_mode: hot water mode of a boiler, "on" restoring the last
+//                         mode that was not "stop".
 //
-// Scene TRIGGERS are the other direction ("this happened"): they are fired by
-// the device that observes the event, see src/devices/motionSensor.js.
-//
-// The rules that matter:
-//   - `fields` arrive RESOLVED: scene variables substituted, defaults applied,
-//     validated by the core; a `"source": "devices"` field is the chosen
-//     device external_id;
-//   - resolve an object of the declared `outputs` (scalars only), readable by
-//     the following actions of the scene, or `undefined` for none. Keys not
-//     declared in the manifest are dropped by the core;
-//   - throwing fails THIS action only: the scene logs it and continues. A
-//     scene action is never a condition: return an output and let the scene
-//     author gate on it;
-//   - never fire a scene event as a consequence of a received action: a scene
-//     bound to that event would loop through the integration.
+// The setpoints need no action of their own: they are device features, which
+// the core's "set a device value" action already drives. The trigger
+// (`alarm_raised`) is fired by the hub when a new alarm appears.
+// Keys are forever once published.
 // -----------------------------------------------------------------------------
 
-import { createLogger } from '@gladysassistant/integration-sdk';
-import { signalDevice } from './devices/index.js';
+import { ZONE_MODES } from './hub.js';
 
-const logger = createLogger({ name: 'scenes' });
+export const HOT_WATER_TARGETS = [
+  'on',
+  'stop',
+  'max',
+  'eco',
+  'eco_timer',
+  'eco_plus',
+  'eco_plus_timer',
+];
 
-export const SCENE_ACTIONS = {
-  // The ack is awaited under the action's `timeout_seconds` (15 s in the
-  // manifest), counted from the moment the scene reaches the action.
-  async identify_device(gladys, { fields, config }) {
-    logger.info(`Scene action identify_device <- ${fields.device}`);
-    const signalled = await signalDevice(gladys, fields.device, config);
-    return { signalled };
-  },
-};
+/** The zones a device stands for: itself, or every zone of a boiler. */
+function zonesOf(hub, deviceExternalId) {
+  const found = hub.locate(deviceExternalId);
+  if (!found) {
+    throw new Error(`Unknown Frisquet device ${deviceExternalId}`);
+  }
+  return { site: found.site, zones: found.zone ? [found.zone] : found.site.zones };
+}
+
+export function createSceneActions(hub) {
+  return {
+    async set_zone_mode(fields) {
+      const mode = String(fields.mode);
+      if (!ZONE_MODES.includes(mode)) {
+        throw new Error(`Unknown zone mode ${mode}`);
+      }
+      const { site, zones } = zonesOf(hub, String(fields.zone));
+      // The override order carries no zone: once is enough for a boiler.
+      const once = mode.endsWith('override') ? zones.slice(0, 1) : zones;
+      for (const zone of once) {
+        await hub.setZoneMode(site, zone, mode);
+      }
+      return { mode };
+    },
+
+    async set_hot_water_mode(fields) {
+      const target = String(fields.mode);
+      if (!HOT_WATER_TARGETS.includes(target)) {
+        throw new Error(`Unknown hot water mode ${target}`);
+      }
+      const { site } = zonesOf(hub, String(fields.boiler));
+      if (target === 'on' || target === 'stop') {
+        await hub.setHotWater(site, target === 'on');
+      } else {
+        await hub.setHotWaterMode(site, target);
+      }
+      return { mode: site.hotWater?.mode?.key ?? target };
+    },
+  };
+}
+
+/** The scene action keys, for the manifest test. */
+export const SCENE_ACTION_KEYS = Object.keys(createSceneActions(null));

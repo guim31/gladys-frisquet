@@ -1,0 +1,39 @@
+{
+  "token": "00000000000000000000000000000000",
+  "utilisateur": {
+    "id": 3452,
+    "email": "user@example.com",
+    "civilite": "Mme",
+    "nom": "Doe",
+    "prenom": "Jane",
+    "numero": "1",
+    "rue": "Rue de la Paix",
+    "code_postal": "75000",
+    "ville": "Paris",
+    "code_pays": "FR",
+    "telephone": "+33100000000",
+    "langue": "FR",
+    "acceptation_cgu_web": false,
+    "acceptation_cgu_mobile": true,
+    "debug": false,
+    "sites_pre_associes": [],
+    "notifications": true,
+    "sites": [
+      {
+        "identifiant_chaudiere": "00000000000001",
+        "nom": "Maison",
+        "alarmes": []
+      },
+      {
+        "identifiant_chaudiere": "00000000000003",
+        "nom": "Appartement",
+        "alarmes": [
+          {
+            "nom": "Box Frisquet Connect déconnectée"
+          }
+        ]
+      }
+    ]
+  },
+  "maintenance_en_cours": false
+}

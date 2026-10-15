@@ -10,21 +10,22 @@
 // rest of the code never has to deal with `undefined`.
 // -----------------------------------------------------------------------------
 
+import { LANGUAGES } from './i18n.js';
+
+export { LANGUAGES };
+
+// Minutes between two reads of the boilers. The Connect box relays the boiler
+// to the cloud every few minutes: reading faster returns the same data and
+// risks a 429.
+export const POLL_INTERVALS_MINUTES = ['5', '10', '15'];
+
 // Defaults: they MUST stay consistent with the `default` values declared in the
 // `config_schema` of the manifest.
 export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
+  email: '',
+  password: '',
+  language: 'fr', // language of the feature names and of the container's texts
+  poll_interval: '5', // minutes, one of POLL_INTERVALS_MINUTES
 };
 
 /**
@@ -32,14 +33,27 @@ export const DEFAULT_CONFIG = {
  * @param {Record<string, unknown>} raw config returned by the SDK
  */
 export function normalizeConfig(raw = {}) {
+  const language = String(raw.language ?? DEFAULT_CONFIG.language);
+  const interval = String(raw.poll_interval ?? DEFAULT_CONFIG.poll_interval);
   return {
     ...DEFAULT_CONFIG,
     ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
+    email: String(raw.email ?? '').trim(),
+    // A password may legitimately start or end with a space: kept as typed.
+    password: String(raw.password ?? ''),
+    language: LANGUAGES.includes(language) ? language : DEFAULT_CONFIG.language,
+    poll_interval: POLL_INTERVALS_MINUTES.includes(interval)
+      ? interval
+      : DEFAULT_CONFIG.poll_interval,
   };
+}
+
+/** The cloud can only be reached once both credentials are set. */
+export function isConfigured(config) {
+  return Boolean(config.email && config.password);
+}
+
+/** @returns {number} milliseconds between two reads */
+export function pollIntervalMs(config) {
+  return Number(config.poll_interval) * 60_000;
 }

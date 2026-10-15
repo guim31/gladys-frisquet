@@ -1,67 +1,167 @@
-# Template de démonstration
+# Frisquet Connect
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+## Présentation
 
-## Ce que vous obtenez
+Cette intégration relie Gladys à votre **chaudière Frisquet** équipée de la **box Frisquet
+Connect**, par le même service en ligne que l'appli « Frisquet Connect ». Vous retrouvez dans
+Gladys :
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+- chaque **zone de chauffage** (Zone 1, Zone 2, Zone 3 selon votre installation) avec sa
+  température ambiante, sa consigne, ses consignes confort / réduit / hors-gel et son mode ;
+- la **chaudière** : température extérieure (si une sonde est raccordée), eau chaude sanitaire
+  (marche / arrêt et mode), alarmes, mode vacances, mise en veille et **gaz consommé** pour le
+  chauffage et l'eau chaude ;
+- un **widget** de tableau de bord pour changer de mode d'un geste, des **actions de scène** et un
+  **déclencheur** sur les alarmes.
+
+Intégration communautaire, **sans lien avec Frisquet**. Le service Frisquet Connect n'a pas
+d'API publique : l'intégration parle la même langue que l'appli officielle, d'après le travail des
+projets cités dans le README. **Développée sans la chaudière ni le compte : vos retours sont les
+bienvenus**, en particulier si un mode ou une commande ne se comporte pas comme dans l'appli.
+
+## Prérequis
+
+- Une chaudière Frisquet avec la **box Frisquet Connect** installée et appairée.
+- Un compte dans l'appli **Frisquet Connect** (e-mail et mot de passe) qui voit votre chaudière.
+- Gladys Assistant **5.2.0 ou plus récent** (le mode des zones utilise les préréglages de
+  thermostat apparus en 5.2.0).
+- Un accès Internet pour Gladys : tout passe par le service en ligne de Frisquet, rien ne passe
+  par le réseau local.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+1. Dans Gladys, **Intégrations → Frisquet Connect → Configuration**.
+2. Renseignez l'**e-mail** et le **mot de passe** de l'appli Frisquet Connect.
+3. Choisissez la **langue des noms** (français par défaut). Les noms des fonctionnalités sont figés
+   quand vous ajoutez un appareil : changez la langue avant.
+4. Choisissez l'**intervalle de relève** : toutes les 5 minutes (par défaut), 10 ou 15 minutes.
+5. Enregistrez, puis cliquez sur **Tester la connexion** : le message indique le nombre de
+   chaudières et de zones trouvées.
+6. Onglet **Découverte** : ajoutez la chaudière et les zones qui vous intéressent.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Si votre compte contient plusieurs chaudières (une maison et un appartement, par exemple), toutes
+apparaissent ; le nom de chaque zone est alors précédé du nom de l'installation.
 
-## Actions
+## Ce que fait chaque appareil
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+### La chaudière
+
+| Fonctionnalité             | Ce qu'elle montre ou fait                                                   |
+| -------------------------- | --------------------------------------------------------------------------- |
+| Température extérieure     | La sonde extérieure, si elle est raccordée.                                 |
+| Eau chaude                 | Marche / arrêt de l'eau chaude. « Marche » reprend le dernier mode utilisé. |
+| Mode eau chaude            | MAX, Éco, Éco programmé, Éco+, Éco+ programmé, Arrêt (selon la chaudière).  |
+| Alarme / Alarme en cours   | Le texte de l'alarme affichée par Frisquet, et un indicateur oui / non.     |
+| Mode vacances              | Actif quand des vacances sont programmées et en cours (lecture seule).      |
+| Chaudière en veille        | La chaudière est en veille.                                                 |
+| Gaz chauffage / eau chaude | Gaz consommé ce mois-ci et cette année, en kWh, tel que Frisquet le compte. |
+
+Les alarmes « installateur » (par exemple un rappel permanent sur le plancher chauffant) ne sont
+pas des pannes : elles sont ignorées.
+
+### Les zones de chauffage
+
+| Fonctionnalité                       | Ce qu'elle montre ou fait                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Température ambiante                 | La température mesurée par la sonde d'ambiance de la zone.                                                                                            |
+| Consigne                             | La consigne appliquée en ce moment. La changer modifie la consigne du mode en cours (confort ou réduit), durablement, comme dans l'appli.             |
+| Consigne confort / réduit / hors-gel | Les trois consignes de la zone, réglables de 5 à 30 °C par pas de 0,5 °C.                                                                             |
+| Mode                                 | **Programme** (suit la programmation hebdomadaire), **Confort**, **Réduit** ou **Hors-gel** en permanence. Dans Gladys, « Réduit » s'affiche « Éco ». |
+| Dérogation en cours                  | Une dérogation est active (mode forcé jusqu'au prochain changement du programme).                                                                     |
+| Boost                                | Seulement si la zone le propose : chauffe renforcée temporaire.                                                                                       |
+| Mode en cours                        | Une phrase : « Confort (programme) », « Réduit (dérogation) », « Hors-gel (vacances) »…                                                               |
+
+Choisir **Programme** met aussi fin à une dérogation en cours.
+
+## Rythme, délais et quotas
+
+- La box Connect transmet l'état de la chaudière au service Frisquet **par radio, toutes les
+  quelques minutes**. Lire plus souvent ne donnerait rien de plus : l'intégration relève toutes les
+  5 minutes par défaut (10 ou 15 au choix), et la consommation de gaz (mensuelle) toutes les 6
+  heures.
+- Une commande est acceptée tout de suite par le service, mais la chaudière ne l'applique qu'à son
+  prochain échange avec la box : **comptez quelques minutes**. Gladys affiche aussitôt la valeur
+  demandée, puis l'intégration relit la chaudière 20 secondes et 3 minutes après.
+- Le service limite le nombre de requêtes : l'intégration espace ses appels d'au moins une demi-
+  seconde et ne relit que les chaudières dont un appareil est ajouté dans Gladys. Après un mot de
+  passe refusé, elle attend 30 minutes avant de réessayer seule (pour ne pas bloquer votre compte) ;
+  corriger la configuration relance tout de suite.
+- Une valeur qui ne change pas est republiée toutes les 6 heures, pour que Gladys ne l'affiche pas
+  comme ancienne.
+
+## Widget
+
+Ajoutez le widget **Chauffage Frisquet** à un tableau de bord.
+
+- **Sans réglage** (ou avec une chaudière) : toutes les zones d'un coup d'œil, température et
+  consigne de chacune, et une ligne par zone avec son mode en cours.
+- **Avec une zone choisie** : sa température et sa consigne en direct, le mode en cours, les
+  consignes confort / réduit / hors-gel, la température extérieure, et quatre boutons :
+  **Programme**, **Confort**, **Réduit** et **Dérogation** (qui inverse la période en cours jusqu'au
+  prochain changement du programme, comme la touche de dérogation de la chaudière) ou **Fin
+  dérogation**. Le mode actif porte une coche.
+
+Le mode hors-gel n'a pas de bouton dans le widget, pour ne pas couper le confort par un geste
+malheureux : il se choisit dans l'appareil ou par une scène.
 
 ## Scènes
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+### Déclencheur
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+- **Alarme chaudière Frisquet** — une nouvelle alarme apparaît sur la chaudière (défaut, box
+  Connect déconnectée…). Choisissez la chaudière, ou laissez vide pour toutes. Le texte de l'alarme
+  est disponible dans la variable « Alarme ». Une alarme déjà présente à l'installation ou au
+  redémarrage ne déclenche rien.
 
-## Tableau de bord
+### Actions
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+- **Mode de chauffage Frisquet** — choisissez une zone, ou une chaudière pour toutes ses zones, et
+  le mode : retour au programme, confort / réduit / hors-gel permanent, confort ou réduit jusqu'au
+  prochain changement (dérogation), ou fin de la dérogation.
+- **Eau chaude Frisquet** — choisissez la chaudière et le mode : Marche (dernier mode utilisé),
+  Arrêt, MAX, Éco, Éco programmé, Éco+, Éco+ programmé.
+
+Les consignes se règlent avec l'action standard de Gladys « Contrôler un appareil ».
+
+## Exemples de scènes
+
+- **Départ en week-end** : quand l'alarme de la maison passe en mode absent, action **Mode de
+  chauffage Frisquet** sur la chaudière avec « Hors-gel permanent », puis **Eau chaude Frisquet** sur
+  « Arrêt ». Au retour, « Retour au programme » et « Marche ».
+- **Retour plus tôt que prévu** : quand votre téléphone revient dans la zone de la maison en
+  semaine, action « Confort jusqu'au prochain changement » sur la zone du séjour.
+- **Prévenir d'une panne** : déclencheur **Alarme chaudière Frisquet**, puis un message Telegram
+  « Chaudière : {{triggerEvent.data.alarm}} ».
+- **Heures creuses** : à 22 h, consigne réduit à 17 °C ; à 6 h, consigne confort à 20 °C (action
+  « Contrôler un appareil »).
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **« Frisquet Connect a refusé l'e-mail ou le mot de passe »** : vérifiez-les en vous connectant
+  à l'appli Frisquet Connect, puis corrigez la configuration.
+- **« Frisquet Connect ne répond pas »** : le service est indisponible ou en maintenance ;
+  l'intégration réessaie seule. L'alarme « Box Frisquet Connect déconnectée » signale, elle, que la
+  box n'atteint plus Internet (box débranchée, Wi-Fi coupé).
+- **Une commande ne change rien** : attendez quelques minutes (voir les délais ci-dessus). Si la
+  valeur revient à l'ancienne après 5 minutes, signalez-le avec les journaux.
+- **« Pas de valeur récente »** sur la consommation de gaz : votre compte ne la fournit peut-être
+  pas ; les autres fonctionnalités marchent sans.
+- **Journaux** : en temps normal l'intégration n'écrit rien. Pour le détail, passez `LOG_LEVEL` à
+  `debug`. Le jeton et le mot de passe n'apparaissent jamais dans les journaux.
+
+## Limites
+
+- **Développée sans la chaudière ni le compte** : les réponses du service viennent d'autres projets
+  communautaires qui les ont relevées sur de vraies chaudières. Retours bienvenus.
+- Le **mode vacances** est en lecture seule : la manière de le programmer par le service n'est pas
+  documentée. Programmez-le dans l'appli ou sur la chaudière, ou utilisez « Hors-gel permanent ».
+- La **dérogation** est une commande sans numéro de zone dans le service Frisquet : sur une
+  installation à plusieurs zones, elle peut s'appliquer à la zone 1 ou à toutes les zones, selon la
+  chaudière. À vérifier chez vous.
+- La **programmation hebdomadaire** n'est pas modifiable depuis Gladys (seulement suivie).
+- La **consommation de gaz** est celle que Frisquet calcule, par mois : ce n'est pas un compteur de
+  gaz, et elle n'est pas envoyée au suivi d'énergie de Gladys, qui la compterait comme de
+  l'électricité.
+- Le **mode de l'eau chaude** des installations solaires n'est pas géré.
+- Tout passe par Internet : sans accès au service Frisquet, Gladys ne voit plus la chaudière (la
+  chaudière, elle, continue de chauffer normalement).
