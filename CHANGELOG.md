@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-17
+
 ### Changed
 
 - Integration SDK 0.16.1.
@@ -33,5 +35,6 @@ the notes of the version's GitHub Release.
   command; it only publishes what changed.
 - Every text in English, French, German and Spanish, documentation included.
 
-[Unreleased]: https://github.com/guim31/gladys-frisquet/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/guim31/gladys-frisquet/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/guim31/gladys-frisquet/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/guim31/gladys-frisquet/releases/tag/v1.0.1

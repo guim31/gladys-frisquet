@@ -1,6 +1,6 @@
 {
   "name": "gladys-frisquet",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Gladys Assistant integration for Frisquet boilers with the Frisquet Connect box (cloud).",
   "type": "module",
